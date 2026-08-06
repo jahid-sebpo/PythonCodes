@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-900 text-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Matrix Excel Data Extractor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #0f172a; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    </style>
+</head>
+<body class="h-full flex flex-col bg-slate-900 min-h-screen text-slate-100 p-4 sm:p-6 md:p-8">
+
+    <header class="max-w-5xl w-full mx-auto mb-6 text-center sm:text-left">
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-slate-800 pb-5">
+            <div>
+                <h1 class="text-2xl sm:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">
+                    Optimum Versioning Automation
+                </h1>
+                <p class="text-slate-400 text-sm mt-1">Upload an Excel file to extract tab records directly via FastAPI</p>
+            </div>
+            <span class="bg-indigo-950/80 text-indigo-400 border border-indigo-800/60 text-xs font-semibold px-3 py-1.5 rounded-full">
+                FastAPI Direct Stream
+            </span>
+        </div>
+    </header>
+
+    <main class="max-w-5xl w-full mx-auto grid grid-cols-1 md:grid-cols-12 gap-6 flex-1">
+        
+        <!-- Controls & Upload Form Section -->
+        <div class="md:col-span-5 flex flex-col gap-5">
+            <form id="uploadForm" class="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+                
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-2">Excel File (.xlsx, .xls)</label>
+                    <div id="dropZone" class="border-2 border-dashed border-slate-600 hover:border-indigo-500 bg-slate-900/50 rounded-xl p-6 text-center cursor-pointer transition-all duration-200">
+                        <svg class="mx-auto h-10 w-10 text-indigo-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 0115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        <p id="fileNameDisplay" class="text-xs text-slate-300 font-medium">Click to browse or drag & drop file here</p>
+                        <p class="text-[11px] text-slate-500 mt-1">Supports matrixfile.xlsx</p>
+                        <input type="file" id="fileInput" name="file" accept=".xlsx, .xls" class="hidden" required>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="sheetName" class="block text-sm font-medium text-slate-300 mb-1">Sheet / Tab Name</label>
+                    <input type="text" id="sheetName" name="sheet_name" value="FT Matrix Output" 
+                        class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition-colors"
+                        placeholder="e.g. FT Matrix Output">
+                </div>
+
+                <div>
+                    <label for="orient" class="block text-sm font-medium text-slate-300 mb-1">Output Structure</label>
+                    <select id="orient" name="orient" 
+                        class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition-colors">
+                        <option value="records">Array of Objects (JSON Records)</option>
+                        <!-- <option value="list">2D Matrix Array (Including Header)</option> -->
+                    </select>
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit" id="submitBtn" 
+                    class="mt-2 w-full bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white font-medium py-2.5 px-4 rounded-xl shadow-lg shadow-indigo-600/25 transition-all flex justify-center items-center gap-2">
+                    <svg id="btnSpinner" class="hidden animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span id="btnText">Generate Versions</span>
+                </button>
+            </form>
+
+            <!-- Status Banner -->
+            <div id="toastMessage" class="hidden p-4 rounded-xl border text-xs font-medium transition-all"></div>
+        </div>
+
+        <div class="md:col-span-7 flex flex-col bg-slate-800/60 border border-slate-700/60 rounded-2xl shadow-xl overflow-hidden min-h-[350px]">
+            <div class="bg-slate-900/80 px-5 py-3.5 border-b border-slate-700/60 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+                    <h2 class="text-sm font-semibold text-slate-200">Parsed Result Output</h2>
+                </div>
+                <button id="copyBtn" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                    Copy Output
+                </button>
+            </div>
+
+            <!-- Output Body -->
+            <div class="flex-1 p-4 overflow-auto custom-scrollbar bg-slate-950 font-mono text-xs">
+                <pre id="jsonViewer" class="text-emerald-400 whitespace-pre-wrap break-all">Upload an Excel file to see the extracted matrix array output here...</pre>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const fileNameDisplay = document.getElementById('fileNameDisplay');
+        const uploadForm = document.getElementById('uploadForm');
+        const jsonViewer = document.getElementById('jsonViewer');
+        const toastMessage = document.getElementById('toastMessage');
+        const submitBtn = document.getElementById('submitBtn');
+        const btnSpinner = document.getElementById('btnSpinner');
+        const btnText = document.getElementById('btnText');
+        const copyBtn = document.getElementById('copyBtn');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                dropZone.classList.add('border-indigo-500', 'bg-indigo-950/20');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('border-indigo-500', 'bg-indigo-950/20');
+            }, false);
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            if (files.length) {
+                fileInput.files = files;
+                updateFileName();
+            }
+        });
+
+        fileInput.addEventListener('change', updateFileName);
+
+        function updateFileName() {
+            if (fileInput.files.length > 0) {
+                fileNameDisplay.textContent = `📄 ${fileInput.files[0].name}`;
+                fileNameDisplay.classList.add('text-indigo-400', 'font-semibold');
+            }
+        }
+
+        function showStatus(message, isError = false) {
+            toastMessage.classList.remove('hidden', 'bg-emerald-950/80', 'border-emerald-800', 'text-emerald-300', 'bg-rose-950/80', 'border-rose-800', 'text-rose-300');
+            if (isError) {
+                toastMessage.classList.add('bg-rose-950/80', 'border-rose-800', 'text-rose-300');
+            } else {
+                toastMessage.classList.add('bg-emerald-950/80', 'border-emerald-800', 'text-emerald-300');
+            }
+            toastMessage.textContent = message;
+        }
+
+        uploadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            if (!fileInput.files.length) {
+                showStatus('Please select an Excel file to upload.', true);
+                return;
+            }
+
+            const formData = new FormData(uploadForm);
+
+            // Set Loading UI State
+            submitBtn.disabled = true;
+            btnSpinner.classList.remove('hidden');
+            btnText.textContent = 'Processing File...';
+
+            try {
+                const response = await fetch('/upload-excel', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    // Extract binary stream blob from StreamingResponse
+                    const blob = await response.blob();
+
+                    // Extract filename from Content-Disposition header if available
+                    const contentDisposition = response.headers.get('Content-Disposition');
+                    let filename = 'export.xlsx';
+                    if (contentDisposition && contentDisposition.includes('filename=')) {
+                        const filenameMatch = contentDisposition.match(/filename=["']?([^"';]+)["']?/);
+                        if (filenameMatch && filenameMatch[1]) {
+                            filename = filenameMatch[1];
+                        }
+                    }
+
+                    // Create dynamic URL object and trigger browser file download
+                    const downloadUrl = window.URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = downloadUrl;
+                    link.download = filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+                    window.URL.revokeObjectURL(downloadUrl);
+
+                    showStatus(`Successfully received '${filename}'. File download started!`);
+                    jsonViewer.textContent = `File downloaded: ${filename}\nSize: ${(blob.size / 1024).toFixed(2)} KB\nContent-Type: ${blob.type}`;
+                } else {
+                    let errorDetail = 'Failed to process Excel file.';
+                    try {
+                        const errorData = await response.json();
+                        errorDetail = errorData.detail || JSON.stringify(errorData);
+                    } catch {
+                        errorDetail = await response.text();
+                    }
+                    showStatus(`Error: ${errorDetail}`, true);
+                    jsonViewer.textContent = `Server Error (${response.status}):\n${errorDetail}`;
+                }
+            } catch (err) {
+                showStatus(`Network Error: ${err.message}`, true);
+            } finally {
+                submitBtn.disabled = false;
+                btnSpinner.classList.add('hidden');
+                btnText.textContent = 'Parse Excel File';
+            }
+        });
+
+        copyBtn.addEventListener('click', () => {
+            const textToCopy = jsonViewer.textContent;
+            
+            // Clipboard fallback
+            const dummy = document.createElement('textarea');
+            document.body.appendChild(dummy);
+            dummy.value = textToCopy;
+            dummy.select();
+            document.execCommand('copy');
+            document.body.removeChild(dummy);
+
+            const originalText = copyBtn.innerHTML;
+            copyBtn.textContent = 'Copied!';
+            setTimeout(() => {
+                copyBtn.innerHTML = originalText;
+            }, 2000);
+        });
+    </script>
+</body>
+</html>

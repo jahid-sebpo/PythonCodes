@@ -7,62 +7,6 @@ import os
 from typing import Any, Dict, List
 
 
-def read_excel(
-    file_folder: str = "file",
-    file_name: str = "matrixfile.xlsx",
-    sheet_name: str = "FT Matrix Output",
-    orient: str = "records"
-) -> Union[List[Dict[str, Any]], List[List[Any]]]:
-    """
-    Reads an Excel file named 'matrixfile' from the 'file' folder and reads 
-    the 'matrix sheet' tab, returning the data as a Python array (list).
-
-    Parameters:
-    - file_folder (str): Directory where the Excel file is located. Default is 'file'.
-    - file_name (str): Filename with extension. Default is 'matrixfile.xlsx'.
-    - sheet_name (str): Tab name to read. Default is 'matrix sheet'.
-    - orient (str): Output array format:
-        * 'records' (default): Returns list of row dicts -> [{'Col1': 'Val1', 'Col2': 'Val2'}, ...]
-        * 'list': Returns 2D array including header -> [['Col1', 'Col2'], ['Val1', 'Val2'], ...]
-
-    Returns:
-    - List containing the sheet records/rows.
-    """
-    # Build complete path to the file
-    file_path = os.path.join(file_folder, file_name)
-
-    # Check if the file exists before attempting to read
-    if not os.path.exists(file_path):
-        raise FileNotFoundError(f"❌ Excel file not found at path: '{file_path}'")
-
-    try:
-        df = pd.read_excel(file_path, sheet_name=sheet_name)
-
-        # Replace NaN / None values with empty string or None for clean representation
-        df = df.where(pd.notnull(df), None)
-
-        if orient == "records":
-            # Returns array of dictionaries
-            return df.to_dict(orient="records")
-        elif orient == "list":
-            # Returns 2D array (rows & columns)
-            headers = df.columns.tolist()
-            rows = df.values.tolist()
-            return rows
-            return "[headers] + rows[0]"
-        else:
-            return df.to_dict(orient=orient)
-
-    except ValueError as val_err:
-        raise ValueError(f"❌ Sheet '{sheet_name}' was not found in '{file_name}'. Details: {val_err}")
-    except Exception as err:
-        raise RuntimeError(f"❌ Error reading Excel file '{file_path}': {err}")
-
-def debug():
-    data = read_excel()
-    generate_excel(data)
-
-
 def legalHandler(l):
     TA = ["Terms apply.", "See details"]  # Can be a string, list, tuple, or set
     # 1. Clean the outer whitespace first
@@ -89,10 +33,9 @@ def legalHandler(l):
             return legal
 
 
-def generate_excel():
-    data = read_excel("file", "matrixfile.xlsx","FT Matrix Output","records")
-    baseData = read_excel("file", "baseData.xlsx","baseData","records")
-
+def generate_excel(file_source, sheet_name, orient):
+    data = read_excel(sheet_name, file_source, 'matrixfile.xlsx', orient)
+    baseData = read_excel("baseData",None, "baseData.xlsx", "records")
     rows = []
     i = 0
     while i < 4:
@@ -156,11 +99,70 @@ def generate_excel():
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         df.to_excel(writer, index=False, sheet_name="OptimumBase")
     
-    output.seek(0)
-    return output
+    return output.getvalue();
 
 def isBlank(d,s):
     if d == '' or d== 'NA' or d== 'nan' :
         return "blank.png"
     else:
         return f"{d}_{s}.png"
+
+
+def read_excel(
+        sheet_name,
+        file_source: Union[str, io.BytesIO, None] = None,
+        file_name: str = 'matrixfile.xlsx',
+        orient: str = "records"
+) -> Union[List[Dict[str, Any]], List[List[Any]]]:
+    """
+    Reads an Excel file either from a file path, raw bytes, or an in-memory binary stream (io.BytesIO),
+    parses the specified sheet tab, and returns the data as a Python list/array.
+
+    Parameters:
+    - file_source (str | bytes | io.BytesIO | None): Input source. Defaults to file_folder/file_name if None.
+    - sheet_name (str): Tab name to read inside the Excel workbook.
+    - orient (str): Structure format ('records' for list of dicts, 'list' for 2D matrix array).
+    - file_folder (str): Fallback directory path.
+    - file_name (str): Fallback filename.
+
+    Returns:
+    - List containing extracted row data.
+    """
+
+    if file_source is None:
+        file_source = os.path.join("file", file_name)
+
+    # Convert BytesIO stream to raw bytes to safely evaluate length/sequence properties
+    if isinstance(file_source, io.BytesIO):
+        file_source = file_source.getvalue()
+
+    # Distinguish string filepath vs binary buffer input
+    if isinstance(file_source, str):
+        if not os.path.exists(file_source):
+            raise FileNotFoundError(f"Excel file not found at path: '{file_source}'")
+        excel_input = file_source
+    elif isinstance(file_source, bytes):
+        excel_input = io.BytesIO(file_source)
+    else:
+        excel_input = file_source
+
+    try:
+        # Load excel data into pandas DataFrame
+        df = pd.read_excel(excel_input, sheet_name=sheet_name)
+
+        # Clean NaN/NaT values for JSON compatibility
+        df = df.where(pd.notnull(df), None)
+
+        if orient == "records":
+            return df.to_dict(orient="records")
+        elif orient == "list":
+            headers = df.columns.tolist()
+            rows = df.values.tolist()
+            return [headers] + rows
+        else:
+            return df.to_dict(orient=orient)
+
+    except ValueError as val_err:
+        raise ValueError(f"Sheet '{sheet_name}' was not found in workbook. Details: {val_err}")
+    except Exception as err:
+        raise RuntimeError(f"Error parsing Excel file: {err}")
