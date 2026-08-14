@@ -36,16 +36,20 @@ def legalHandler(l):
 def generate_excel(file_source, sheet_name, orient):
     data = read_excel(sheet_name, file_source, 'matrixfile.xlsx', orient)
     baseData = read_excel("baseData",None, "baseData.xlsx", "records")
+    sizetype = "display"
     rows = []
     i = 0
-    while i < 4:
+    while i < len(baseData):
         for d in data:
             f1_legal = legalHandler(d.get("f1_legal_DESKTOP", {}) or {})
             f2_legal = legalHandler(d.get("f2_legal DESKTOP", {}) or {})
             f3_legal = legalHandler(d.get("f3_legal_DESKTOP", {}) or {})
             legalPanel = legalHandler(d.get("legalPanel : Text (expanded full frame)", {}) or {})
             legal = "|".join(filter(None, [f1_legal, f2_legal, f3_legal]))
-            
+
+            if baseData[i]["size"] == "320x50" or baseData[i]["size"] == "320x50" :
+                sizetype = "mobile"
+
             rows.append({
                 "Creative File Name": f"_{baseData[i]["size"]}.zip",
                 "Version Name": d.get("Version Name", {}) or {},
@@ -72,9 +76,9 @@ def generate_excel(file_source, sheet_name, orient):
                 "cta_txt_size_hex_hexHover_weight_xy : Text": baseData[i]["cta_txt_size_hex_hexHover_weight_xy : Text"], 
                 "cta_bgHex_bgHexHover : Text": baseData[i]["cta_bgHex_bgHexHover : Text"], 
                 "offer_hex_weight_strike_hex_thickness_bullet_hex_size : Text": baseData[i]["offer_hex_weight_strike_hex_thickness_bullet_hex_size : Text"], 
-                "frame1_img : Image": isBlank( d.get("f1_background_img : Image", {}), baseData[i]["size"]),
-                "frame2_img : Image": isBlank( d.get("f2_background_img : Image", {}), baseData[i]["size"]),
-                "frame3_img : Image": isBlank( d.get("f3_background_img : Image", {}), baseData[i]["size"]),
+                "frame1_img : Image":  "blank.png" if sizetype == "mobile" else isBlank( d.get("f1_background_img : Image", {}), baseData[i]["size"]),
+                "frame2_img : Image": "blank.png" if sizetype == "mobile" else isBlank( d.get("f2_background_img : Image", {}), baseData[i]["size"]),
+                "frame3_img : Image": "blank.png" if sizetype == "mobile" else isBlank( d.get("f3_background_img : Image", {}), baseData[i]["size"]),
                 "logo_img : Image":isBlank("",baseData[i]["size"]), 
                 "logoimg_height_width_xy : Text": baseData[i]["logoimg_height_width_xy : Text"], 
                 "background_pattern_img : Image": baseData[i]["background_pattern_img : Image"], 
@@ -102,10 +106,11 @@ def generate_excel(file_source, sheet_name, orient):
     return output.getvalue();
 
 def isBlank(d,s):
-    if d == '' or d== 'NA' or d== 'nan' :
+    n = str(d)
+    if n == '' or n== 'NA' or n== 'nan' or n== 'N/A' :
         return "blank.png"
     else:
-        return f"{d}_{s}.png"
+        return f"{n}_{s}.png"
 
 
 def read_excel(
